@@ -11,6 +11,22 @@ from django.template.loader import add_to_builtins
 add_to_builtins('insert_above.templatetags.insert_tags')
 ~~~~
 
+REQUIREMENTS
+------------
+
+1. Python >=2.6 (lower not tested)
+2. Django >= 1.3 (lower not tested)
+
+TAGS
+----
+
+1. {% insert_handler %}
+2. {% container name %}
+3. {% media_container name %}
+4. {% insert_str container str %}
+5. {% insert container %}{% endinsert %}
+
+
 EXAMPLE
 -------
 
