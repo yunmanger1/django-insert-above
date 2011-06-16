@@ -96,7 +96,8 @@ So if we render
 Template('blog/post_detail.html').render(Context({'title': 'Hello', 'text': 'World'}))
 we will get:
 
-~~~~
+<code>
+<pre>
 <html>
 <head>
 <script>
@@ -123,7 +124,8 @@ World
 <hr>
 </body>
 </html>
-~~~~
+</pre>
+</code>
 
 What shall be noted?
 -------------------
