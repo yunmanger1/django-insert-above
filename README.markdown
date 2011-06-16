@@ -1,4 +1,4 @@
-Installation
+INSTALL
 ------------
 
 1. (required) add 'insert_above' in INSTALLED_APP in your settings.py
@@ -10,3 +10,134 @@ they will run for sure. For example in urls.py
 from django.template.loader import add_to_builtins
 add_to_builtins('insert_above.templatetags.insert_tags')
 ~~~~
+
+EXAMPLE
+-------
+
+Let's analyze an example. 
+
+base.html
+~~~~
+{% insert_handler %}
+<html>
+<head>
+<script>
+<script type='text/javascript' src='{{ MEDIA_URL }}js/jquery.min.js'></script> 
+{% media_container media %}
+
+$(document).ready(function(){
+{% container ready %}
+});
+</script>
+</head>
+<body>
+{% block content %}
+{% endblock %}
+</body>
+</html>
+~~~~
+
+Base template creating blocks and containers..
+
+blog/base.html
+~~~~
+{% extends "base.html" %}
+
+{% block content %}
+{% insert_str media "js/mathjax.js" %}
+    {% block header %}{% endblock %}
+    {% block menu %}{% include "blog/menu.html" %}{% endblock %}
+    {% block text %}{% endblock %}
+    {% block footer %}{% endblock %}
+{% endblock %}
+~~~~
+
+Extending content block. Requiring js/mathjax.js resource into 'media' container.
+
+blog/menu.html
+~~~~
+{% insert_str media "js/animated.menu.js" %}
+{% insert_str media "css/animated.menu.css" %}
+{% insert ready %}
+    $('ul.menu').each(function(){
+        $(this).superanimation();
+    });
+{% endinsert %}
+<ul id='blog-menu' class='menu'>
+ <li>link</li>
+ <li>link</li>
+ <li>link</li>
+</ul>
+~~~~
+
+Requiring js/animated.menu.js and css/animated.menu.css into "media" container.
+Inserting javascript code into "ready" container.
+
+blog/post_detail.html
+~~~~
+{% extends "blog/base.html" %}
+
+{% block header %}{{ title }}{% endblock %}
+
+{% block text %}
+{% insert_str media "js/mathjax.js" %}
+{{ text }}
+{% endblock %}
+
+{% block footer %}
+<hr>
+{% endblock %}
+~~~~
+
+Implementing blocks and requiring js/mathjax.js into media.
+
+
+So if we render 
+Template('blog/post_detail.html').render(Context({'title': 'Hello', 'text': 'World'}))
+we will get:
+
+~~~~
+<html>
+<head>
+<script>
+<script type='text/javascript' src='/media/js/jquery.min.js'></script> 
+<script type='text/javascript' src='/media/js/mathjax.js'></script>
+<script type='text/javascript' src='/media/js/animated.menu.js'></script>
+<link rel="stylesheet" href="/media/css/animated.menu.css" type="text/css" />
+
+$(document).ready(function(){
+    $('ul.menu').each(function(){
+        $(this).superanimation();
+    });
+});
+</script>
+</head>
+<body>
+Hello
+<ul id='blog-menu' class='menu'>
+ <li>link</li>
+ <li>link</li>
+ <li>link</li>
+</ul>
+World
+<hr>
+</body>
+</html>
+~~~~
+
+What shall be noted?
+-------------------
+
+1. `js/mathjax.js` automatically becomes `<script type='text/javascript' src='/media/js/mathjax.js'></script>`
+and `css/animated.menu.css` becomes `<link rel="stylesheet" href="/media/css/animated.menu.css" type="text/css" />`
+2. inserting from included template is possible
+3. any text may be inserted to any container. Here we insert javascript code in  `$(document).ready(function(){});`
+4. `js/mathjax.js` was required twice, but included only once.
+5. The order of included resources is kept.
+
+## TODOs
+
+1. testing
+2. extending tags
+3. resource bulking
+
