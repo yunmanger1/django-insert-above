@@ -1,5 +1,5 @@
 INSTALL
--------
+------------
 
 1. (required) add 'insert_above' in INSTALLED_APP in your settings.py
 
@@ -17,8 +17,8 @@ EXAMPLE
 Let's analyze an example. 
 
 base.html
-<code>
-<pre>
+
+~~~~{.html}
 {% insert_handler %}
 <html>
 <head>
@@ -36,14 +36,13 @@ $(document).ready(function(){
 {% endblock %}
 </body>
 </html>
-</pre>
-</code>
+~~~~
 
 Base template creating blocks and containers..
 
 blog/base.html
-<code>
-<pre>
+
+~~~~{.html}
 {% extends "base.html" %}
 
 {% block content %}
@@ -53,14 +52,13 @@ blog/base.html
     {% block text %}{% endblock %}
     {% block footer %}{% endblock %}
 {% endblock %}
-</pre>
-</code>
+~~~~
 
 Extending content block. Requiring js/mathjax.js resource into 'media' container.
 
 blog/menu.html
-<code>
-<pre>
+
+~~~~{.html}
 {% insert_str media "js/animated.menu.js" %}
 {% insert_str media "css/animated.menu.css" %}
 {% insert ready %}
@@ -73,15 +71,14 @@ blog/menu.html
  <li>link</li>
  <li>link</li>
 </ul>
-</pre>
-</code>
+~~~~
 
 Requiring js/animated.menu.js and css/animated.menu.css into "media" container.
 Inserting javascript code into "ready" container.
 
 blog/post_detail.html
-<code>
-<pre>
+
+~~~~{.html}
 {% extends "blog/base.html" %}
 
 {% block header %}{{ title }}{% endblock %}
@@ -94,8 +91,7 @@ blog/post_detail.html
 {% block footer %}
 <hr>
 {% endblock %}
-</pre>
-</code>
+~~~~
 
 Implementing blocks and requiring js/mathjax.js into media.
 
@@ -104,8 +100,7 @@ So if we render
 Template('blog/post_detail.html').render(Context({'title': 'Hello', 'text': 'World'}))
 we will get:
 
-<code>
-<pre>
+~~~~{.html}
 <html>
 <head>
 <script>
@@ -132,8 +127,7 @@ World
 <hr>
 </body>
 </html>
-</pre>
-</code>
+~~~~
 
 What shall be noted?
 -------------------
