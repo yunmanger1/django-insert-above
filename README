@@ -19,7 +19,7 @@ MOTIVATION
 4. Keep the order of resource includes from different places.
 
 INSTALL
-------------
+-------
 
 1. (required) add 'insert_above' in INSTALLED_APPS in your settings.py
 
@@ -31,21 +31,31 @@ from django.template.loader import add_to_builtins
 add_to_builtins('insert_above.templatetags.insert_tags')
 ~~~~
 
-REQUIREMENTS
-------------
-
-1. Python >=2.6 (lower not tested)
-2. Django >= 1.3 (lower not tested)
-
-TAGS
-----
+TAGS & FILTERS
+--------------
 
 1. {% insert_handler %}
 2. {% container name %}
 3. {% media_container name %}
 4. {% insert_str container str %}
 5. {% insert container %}{% endinsert %}
+6. media_tag filter simply converts `ga.js` into `<script type='text/javascript' src='/static/ga.js'></script>`
 
+RESTRICTIONS
+------------
+
+1. `{% container %}` or `{% media_container %}` tags must NOT be in other `{% block %}`.
+2. `{% insert_handler %}` ought to be at ther very beginning of base template.
+
+VARIABLES
+---------
+
+1. `IA_USE_MEDIA_PREFIX`, by default True
+2. `IA_MEDIA_PREFIX`, if not set `STATIC_URL` is used, if not set `MEDIA_URL` is used, if not set '/media/' is used
+3. `DEBUG`, if True logs how much time spent on rendering
+4. `IA_JS_FORMAT`, by default `<script type='text/javascript' src='{URL}'></script>`
+5. `IA_CSS_FORMAT`, by default `<link rel='stylesheet' href='{URL}' type='text/css' />`
+6. `IA_MEDIA_EXTENSION_FORMAT_MAP`, by default `{'css' : CSS_FORMAT, '.js' : JS_FORMAT}`
 
 EXAMPLE
 -------

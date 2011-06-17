@@ -23,46 +23,43 @@ except ImportError:
 
 INSERT_TAG_KEY = 'insert-demands'
 DEBUG = settings.DEBUG
-MEDIA_URL = settings.MEDIA_URL
-if hasattr(settings,'JS_TEMPLATE_STR'):
-    JS_TEMPLATE_STR = settings.JS_TEMPLATE_STR
-else:
-    JS_TEMPLATE_STR = "<script type='text/javascript' src='{{ URL }}'></script>"
+MEDIA_URL = '/media/'
+if hasattr(settings,'IA_MEDIA_PREFIX'):
+    MEDIA_URL = settings.IA_MEDIA_PREFIX
+elif hasattr(settings,'STATIC_URL'):
+    MEDIA_URL = settings.STATIC_URL
+elif hasattr(settings,'MEDIA_URL'):
+    MEDIA_URL = settings.MEDIA_URL
 
-if hasattr(settings,'CSS_TEMPLATE_STR'):
-    CSS_TEMPLATE_STR = settings.CSS_TEMPLATE_STR
+USE_MEDIA_PREFIX = True    
+if hasattr(settings,'IA_USE_MEDIA_PREFIX'):
+    USE_MEDIA_PREFIX = settings.IA_USE_MEDIA_PREFIX
+
+if hasattr(settings,'IA_JS_FORMAT'):
+    JS_FORMAT = settings.IA_JS_FORMAT
 else:
-    CSS_TEMPLATE_STR = "<link rel='stylesheet' href='{{ URL }}' type='text/css' />"
+    JS_FORMAT = "<script type='text/javascript' src='{URL}'></script>"
+
+if hasattr(settings,'IA_CSS_FORMAT'):
+    CSS_FORMAT = settings.IA_CSS_FORMAT
+else:
+    CSS_FORMAT = "<link rel='stylesheet' href='{URL}' type='text/css' />"
     
-if hasattr(settings,'MEDIA_EXTENSION_TEMPLATE_STRING_MAP'):
-    MEDIA_EXTENSION_TEMPLATE_STRING_MAP = settings.MEDIA_EXTENSION_TEMPLATE_STRING_MAP
+if hasattr(settings,'IA_MEDIA_EXTENSION_FORMAT_MAP'):
+    MEDIA_EXTENSION_FORMAT_MAP = settings.IA_MEDIA_EXTENSION_FORMAT_MAP
 else:
     # by convention key must be 3 characters length. This helps to optimize lookup process
-    MEDIA_EXTENSION_TEMPLATE_STRING_MAP = {
-        'css' : CSS_TEMPLATE_STR,
-        '.js' : JS_TEMPLATE_STR,
+    MEDIA_EXTENSION_FORMAT_MAP = {
+        'css' : CSS_FORMAT,
+        '.js' : JS_FORMAT,
     }
-    
-MEDIA_EXTENSION_TEMPLATE_MAP = {}
 
-def get_media_template(extension):    
+def render_media(extension, ctx):
     """
-    Gets or creates template instance for 
-    media file extension.
+    Renders media format. Used in media container.
     """     
-    if not extension in MEDIA_EXTENSION_TEMPLATE_MAP:
-        if not extension in MEDIA_EXTENSION_TEMPLATE_STRING_MAP:    
-            raise AttributeError('invalid extension: {0}'.format(extension))
-        tpl = template.Template(MEDIA_EXTENSION_TEMPLATE_STRING_MAP[extension])
-        MEDIA_EXTENSION_TEMPLATE_MAP[extension] = tpl
-    return MEDIA_EXTENSION_TEMPLATE_MAP[extension]
-
-def render_media_template_to_string(extension, ctx):
-    """
-    Renders media template to string. Used in media container.
-    """     
-    tpl = get_media_template(extension)
-    return tpl.render(template.Context(ctx))
+    fmt = MEDIA_EXTENSION_FORMAT_MAP[extension]
+    return fmt.format(**ctx)
     
 def get_from_context_root(context, KEY):
     """
@@ -182,18 +179,23 @@ class InsertNode(template.Node):
         cache = get_from_context_root(context, INSERT_TAG_KEY)
         reqset = cache.get(self.container_name, None)
         if not reqset:
-            reqset = set()
+            reqset = []
             cache[self.container_name] = reqset
         if self.insert_str is None:
             if self.nodelist is None:
                 raise AttributeError('insert_str or nodelist must be specified')
             self.insert_str = self.nodelist.render(context)
         else:
+            var = True 
             if self.insert_str.startswith('"'):
                 self.insert_str = self.insert_str[1:]
+                var = False
             if self.insert_str.endswith('"'):
                 self.insert_str = self.insert_str[:-1]
-        reqset.add(OrderedItem(self.insert_str))
+                var = False
+            if var:
+                self.insert_str = context[self.insert_str]
+        reqset.append(OrderedItem(self.insert_str))
     
     @consider_time
     def render(self, context):
@@ -213,9 +215,28 @@ class ContainerNode(template.Node):
         reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name,None)
         if not reqset:
             return '' 
-        items = list(reqset)
-        items.sort()
+        items = reqset
+        #items.sort()
         return "\n".join([x.__unicode__() for x in items])
+
+def media_tag(url):
+    """
+    Usage: {{ url|media_tag }}
+    Simply wraps media url into appropriate HTML tag.
+    
+    Example: {{ "js/ga.js"|media_tag }} 
+    The result will be <script type='text/javascript' src='/static/js/ga.js'></script>
+    
+    Last 3 characters of url define which 
+    format string from MEDIA_EXTENSION_FORMAT_MAP will be used.  
+    """
+    url = url.split('\n')[0].strip()
+    ext = url[-3:]
+    if USE_MEDIA_PREFIX:
+        link = '{0}{1}'.format(MEDIA_URL, url)
+    else:
+        link = url
+    return render_media(ext, {'URL' : link })
 
 class MediaContainerNode(ContainerNode):
   
@@ -224,13 +245,9 @@ class MediaContainerNode(ContainerNode):
         reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name,None)
         if not reqset:
             return '' 
-        items = list(reqset)
+        items = list(set(reqset))
         items.sort()
-        urls = [x.__unicode__().split('\n')[0].strip() for x in items]
-        result = []
-        for url in urls:
-            ext = url[-3:]
-            result.append(render_media_template_to_string(ext, {'URL' : '{0}{1}'.format(MEDIA_URL, url)}))
+        result = [media_tag(x.__unicode__()) for x in items]
         if result:
             return "\n".join(result)
         return ''
@@ -292,7 +309,7 @@ def media_container(parser, token):
     by last 3 characters and render on appropriate template.
     
     By default only '.js' and 'css' files are rendered. It can be extended
-    by setting MEDIA_EXTENSION_TEMPLATE_STRING_MAP variable in settings.
+    by setting MEDIA_EXTENSION_FORMAT_MAP variable in settings.
     
     """    
     bits = token.split_contents()
@@ -334,3 +351,5 @@ def insert(parser, token):
     if len(bits) < 2:
         raise template.TemplateSyntaxError(u"'%r' tag requires 2 arguments." % bits[0])
     return InsertNode(bits[1], nodelist = nodelist)
+
+register.filter('media_tag', media_tag)
