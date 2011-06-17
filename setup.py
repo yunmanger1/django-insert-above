@@ -6,7 +6,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 setup(name='django-insert-above',
-    version='1.0',
+    version='1.0.1',
     description='These django templatetags is a hack making possible to insert "content" in some (maybe above the current or parent template) places.',
     author='German Ilyin',
     author_email='germanilyin@gmail.com',
