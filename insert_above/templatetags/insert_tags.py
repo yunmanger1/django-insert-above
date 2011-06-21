@@ -22,30 +22,13 @@ except ImportError:
     log = logging.getLogger(__name__)
 
 INSERT_TAG_KEY = 'insert-demands'
-DEBUG = settings.DEBUG
-MEDIA_URL = '/media/'
-if hasattr(settings,'IA_MEDIA_PREFIX'):
-    MEDIA_URL = settings.IA_MEDIA_PREFIX
-elif hasattr(settings,'STATIC_URL'):
-    MEDIA_URL = settings.STATIC_URL
-elif hasattr(settings,'MEDIA_URL'):
-    MEDIA_URL = settings.MEDIA_URL
+DEBUG = getattr(settings, 'IA_DEBUG', False)
+MEDIA_URL = getattr(settings, 'IA_MEDIA_PREFIX', getattr(settings, 'STATIC_URL', getattr(settings, 'MEDIA_URL', '/media/')))
+USE_MEDIA_PREFIX = getattr(settings, 'IA_USE_MEDIA_PREFIX', True)
+JS_FORMAT = getattr(settings, 'IA_JS_FORMAT', "<script type='text/javascript' src='{URL}'></script>")
+CSS_FORMAT = getattr(settings, 'IA_CSS_FORMAT', "<link rel='stylesheet' href='{URL}' type='text/css' />")
 
-USE_MEDIA_PREFIX = True    
-if hasattr(settings,'IA_USE_MEDIA_PREFIX'):
-    USE_MEDIA_PREFIX = settings.IA_USE_MEDIA_PREFIX
-
-if hasattr(settings,'IA_JS_FORMAT'):
-    JS_FORMAT = settings.IA_JS_FORMAT
-else:
-    JS_FORMAT = "<script type='text/javascript' src='{URL}'></script>"
-
-if hasattr(settings,'IA_CSS_FORMAT'):
-    CSS_FORMAT = settings.IA_CSS_FORMAT
-else:
-    CSS_FORMAT = "<link rel='stylesheet' href='{URL}' type='text/css' />"
-    
-if hasattr(settings,'IA_MEDIA_EXTENSION_FORMAT_MAP'):
+if hasattr(settings, 'IA_MEDIA_EXTENSION_FORMAT_MAP'):
     MEDIA_EXTENSION_FORMAT_MAP = settings.IA_MEDIA_EXTENSION_FORMAT_MAP
 else:
     # by convention key must be 3 characters length. This helps to optimize lookup process
@@ -57,23 +40,23 @@ else:
 def render_media(extension, ctx):
     """
     Renders media format. Used in media container.
-    """     
+    """
     fmt = MEDIA_EXTENSION_FORMAT_MAP[extension]
     return fmt.format(**ctx)
-    
+
 def get_from_context_root(context, KEY):
     """
     Gets or creates dictinoary in root context.
-    """  
+    """
     if not KEY in context.dicts[0]:
-        context.dicts[0].update({KEY : {}})    
+        context.dicts[0].update({KEY : {}})
     return context.dicts[0].get(KEY)
 
 def add_render_time(context, dt):
     """
     Adds value to root context, which will be used
     later in insert handler node.
-    """    
+    """
     cache = get_from_context_root(context, INSERT_TAG_KEY)
     t = cache.get('DEBUG_TIME', 0) + dt
     cache.update({'DEBUG_TIME': t})
@@ -82,7 +65,7 @@ def get_render_time(context):
     cache = get_from_context_root(context, INSERT_TAG_KEY)
     t = cache.get('DEBUG_TIME', 0)
     return t
-    
+
 def consider_time(f):
     """
     Decorator used to calculate 
@@ -91,7 +74,7 @@ def consider_time(f):
     """
     def nf(obj, context, *args, **kwargs):
         t = time.time()
-        result = f(obj, context, *args,**kwargs)
+        result = f(obj, context, *args, **kwargs)
         dt = time.time() - t
         add_render_time(context, dt)
         return result
@@ -105,26 +88,26 @@ class OrderedItem(object):
     rendered in the same order they were encountered.
     """
     order = 0
-    
+
     def __init__(self, item):
         cur = OrderedItem.order
         self.item, self.order = item, cur
         OrderedItem.order = cur + 1
-        
+
     def __cmp__(self, o):
         if self.item == o.item:
             return 0
-        return self.order - o.order  
-    
+        return self.order - o.order
+
     def __unicode__(self):
         return self.item
-    
+
     def __hash__(self):
         return self.item.__hash__()
-    
+
     def __str__(self):
         return self.__unicode__()
-        
+
 class InsertHandlerNode(template.Node):
     #must_be_first = True
 
@@ -135,7 +118,7 @@ class InsertHandlerNode(template.Node):
 
     def __repr__(self):
         return '<MediaHandlerNode>'
-    
+
     def render_nodelist(self, nodelist, context):
         bits = []
         medias = []
@@ -167,36 +150,50 @@ class InsertHandlerNode(template.Node):
 #        return self.nodelist.render(context)
 
 class InsertNode(template.Node):
-    def __init__(self, container_name, insert_str=None, nodelist=None, *args, **kwargs):
+    def __init__(self, container_name, insert_string = None, subnodes = None, *args, **kwargs):
+        """
+        Note: `self.container_name, self.insert_line, self.subnodes` must not be changed during 
+        `render()` call. Method `render()` may be called multiple times. 
+        """
         super(InsertNode, self).__init__(*args, **kwargs)
-        self.container_name, self.insert_str, self.nodelist = container_name, insert_str, nodelist
+        self.container_name, self.insert_line, self.subnodes = container_name, insert_string, subnodes
         self.index = None
+        self.prev_context_hash = None
 
     def __repr__(self):
-        return "<Media Require Node: %s>" % (self.insert_str)
-    
+        return "<Media Require Node: %s>" % (self.insert_line)
+
     def push_media(self, context):
+        if self.prev_context_hash == context.__hash__():
+            if DEBUG:
+                log.debug('same context: {0} == {1}'.format(self.prev_context_hash, context.__hash__()))
+            return
+        self.prev_context_hash = context.__hash__()
         cache = get_from_context_root(context, INSERT_TAG_KEY)
         reqset = cache.get(self.container_name, None)
         if not reqset:
             reqset = []
             cache[self.container_name] = reqset
-        if self.insert_str is None:
-            if self.nodelist is None:
-                raise AttributeError('insert_str or nodelist must be specified')
-            self.insert_str = self.nodelist.render(context)
+        insert_content = None
+        if self.insert_line == None:
+            if self.subnodes == None:
+                raise AttributeError('insert_line or subnodes must be specified')
+            insert_content = self.subnodes.render(context)
         else:
-            var = True 
-            if self.insert_str.startswith('"'):
-                self.insert_str = self.insert_str[1:]
+            if self.subnodes != None:
+                raise AttributeError('insert_line or subnodes must be specified, not both')
+            var = True
+            insert_content = self.insert_line
+            if insert_content.startswith('"'):
+                insert_content = insert_content[1:]
                 var = False
-            if self.insert_str.endswith('"'):
-                self.insert_str = self.insert_str[:-1]
+            if insert_content.endswith('"'):
+                insert_content = insert_content[:-1]
                 var = False
             if var:
-                self.insert_str = context[self.insert_str]
-        reqset.append(OrderedItem(self.insert_str))
-    
+                insert_content = context[insert_content]
+        reqset.append(OrderedItem(insert_content))
+
     @consider_time
     def render(self, context):
         self.push_media(context)
@@ -209,12 +206,12 @@ class ContainerNode(template.Node):
 
     def __repr__(self):
         return "<Container Node: %s>" % (self.name)
-    
+
     @consider_time
     def render(self, context):
-        reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name,None)
+        reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name, None)
         if not reqset:
-            return '' 
+            return ''
         items = reqset
         #items.sort()
         return "\n".join([x.__unicode__() for x in items])
@@ -239,12 +236,12 @@ def media_tag(url):
     return render_media(ext, {'URL' : link })
 
 class MediaContainerNode(ContainerNode):
-  
+
     @consider_time
     def render(self, context):
-        reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name,None)
+        reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name, None)
         if not reqset:
-            return '' 
+            return ''
         items = list(set(reqset))
         items.sort()
         result = [media_tag(x.__unicode__()) for x in items]
@@ -311,7 +308,7 @@ def media_container(parser, token):
     By default only '.js' and 'css' files are rendered. It can be extended
     by setting MEDIA_EXTENSION_FORMAT_MAP variable in settings.
     
-    """    
+    """
     bits = token.split_contents()
     if len(bits) != 2:
         raise template.TemplateSyntaxError("'%s' takes one argument" % bits[0])
@@ -330,6 +327,7 @@ def insert_str(parser, token):
     bits = token.split_contents()
     if len(bits) != 3:
         raise template.TemplateSyntaxError("'%s' takes two arguments" % bits[0])
+    print 'insert str'
     return InsertNode(bits[1], bits[2])
 
 @register.tag
@@ -345,11 +343,12 @@ def insert(parser, token):
     </script>
     {% endinsert %}
     """
-    nodelist = parser.parse(('endinsert',))
+    subnodes = parser.parse(('endinsert',))
     parser.delete_first_token()
     bits = token.contents.split()
     if len(bits) < 2:
         raise template.TemplateSyntaxError(u"'%r' tag requires 2 arguments." % bits[0])
-    return InsertNode(bits[1], nodelist = nodelist)
+    print 'insert'
+    return InsertNode(bits[1], subnodes = subnodes)
 
 register.filter('media_tag', media_tag)
