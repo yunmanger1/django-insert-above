@@ -23,7 +23,13 @@ except ImportError:
 
 INSERT_TAG_KEY = 'insert-demands'
 DEBUG = getattr(settings, 'IA_DEBUG', False)
-MEDIA_URL = getattr(settings, 'IA_MEDIA_PREFIX', getattr(settings, 'STATIC_URL', getattr(settings, 'MEDIA_URL', '/media/')))
+MEDIA_URL = getattr(settings, 'IA_MEDIA_PREFIX', None)
+if MEDIA_URL is None:
+    MEDIA_URL = getattr(settings, 'STATIC_URL', None)
+if MEDIA_URL is None:
+    MEDIA_URL = getattr(settings, 'MEDIA_URL', None)
+if MEDIA_URL is None:
+    MEDIA_URL = '/media/'
 USE_MEDIA_PREFIX = getattr(settings, 'IA_USE_MEDIA_PREFIX', True)
 JS_FORMAT = getattr(settings, 'IA_JS_FORMAT', "<script type='text/javascript' src='{URL}'></script>")
 CSS_FORMAT = getattr(settings, 'IA_CSS_FORMAT', "<link rel='stylesheet' href='{URL}' type='text/css' />")

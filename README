@@ -196,6 +196,15 @@ and `css/animated.menu.css` becomes `<link rel="stylesheet" href="/media/css/ani
 4. `js/mathjax.js` was required twice, but included only once.
 5. The order of included resources is kept.
 
+FIXTURES
+--------
+
+### version 1.0.2
+
+ + **fix MEDIA_URL setting**
+ if STATIC_URL is not set in settings, it's value is None by default in new versions of Django.
+ Now we check if STATIC_URL is None, then use MEDIA_URL
+
 ## TODOs
 
 1. testing
