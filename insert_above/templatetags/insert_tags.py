@@ -333,7 +333,6 @@ def insert_str(parser, token):
     bits = token.split_contents()
     if len(bits) != 3:
         raise template.TemplateSyntaxError("'%s' takes two arguments" % bits[0])
-    print 'insert str'
     return InsertNode(bits[1], bits[2])
 
 @register.tag
@@ -354,7 +353,6 @@ def insert(parser, token):
     bits = token.contents.split()
     if len(bits) < 2:
         raise template.TemplateSyntaxError(u"'%r' tag requires 2 arguments." % bits[0])
-    print 'insert'
     return InsertNode(bits[1], subnodes = subnodes)
 
 register.filter('media_tag', media_tag)
