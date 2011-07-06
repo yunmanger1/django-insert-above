@@ -12,6 +12,9 @@ from django.template import loader_tags
 from django.utils.encoding import force_unicode
 from django.utils.safestring import mark_safe
 import time
+from django.template.base import Variable
+from django import forms
+from django.utils.datastructures import SortedDict
 register = template.Library()
 
 try:
@@ -189,15 +192,7 @@ class InsertNode(template.Node):
             if self.subnodes != None:
                 raise AttributeError('insert_line or subnodes must be specified, not both')
             var = True
-            insert_content = self.insert_line
-            if insert_content.startswith('"'):
-                insert_content = insert_content[1:]
-                var = False
-            if insert_content.endswith('"'):
-                insert_content = insert_content[:-1]
-                var = False
-            if var:
-                insert_content = context[insert_content]
+            insert_content = Variable(self.insert_line).resolve(context)
         reqset.append(OrderedItem(insert_content))
 
     @consider_time
@@ -222,7 +217,7 @@ class ContainerNode(template.Node):
         #items.sort()
         return "\n".join([x.__unicode__() for x in items])
 
-def media_tag(url):
+def media_tag(url, **kwargs):
     """
     Usage: {{ url|media_tag }}
     Simply wraps media url into appropriate HTML tag.
@@ -233,13 +228,36 @@ def media_tag(url):
     Last 3 characters of url define which 
     format string from MEDIA_EXTENSION_FORMAT_MAP will be used.  
     """
+
     url = url.split('\n')[0].strip()
     ext = url[-3:]
-    if USE_MEDIA_PREFIX:
+    full = url.startswith('http://') or url.startswith('https://')
+    if USE_MEDIA_PREFIX and not full:
         link = '{0}{1}'.format(MEDIA_URL, url)
     else:
         link = url
     return render_media(ext, {'URL' : link })
+
+
+def fetch_urls(item, url_set):
+    if isinstance(item, forms.Form):
+        item = getattr(item, 'media', None)
+        if item is None:
+            return
+
+    if isinstance(item, forms.Media):
+        css, js = None, None
+        css = getattr(item, '_css', {})
+        js = getattr(item, '_js', [])
+        if css:
+            for key, list in css.items():
+                for url in list:
+                    url_set[url] = key
+        if js:
+            for url in js:
+                url_set[url] = 1
+    elif isinstance(item, (str, unicode)):
+        url_set[item] = 1
 
 class MediaContainerNode(ContainerNode):
 
@@ -248,9 +266,12 @@ class MediaContainerNode(ContainerNode):
         reqset = get_from_context_root(context, INSERT_TAG_KEY).get(self.name, None)
         if not reqset:
             return ''
-        items = list(set(reqset))
+        items = reqset
         items.sort()
-        result = [media_tag(x.__unicode__()) for x in items]
+        url_set = SortedDict()
+        for obj in items:
+            fetch_urls(obj.item, url_set)
+        result = [media_tag(key) for key, value in url_set.items()]
         if result:
             return "\n".join(result)
         return ''
@@ -334,6 +355,22 @@ def insert_str(parser, token):
     if len(bits) != 3:
         raise template.TemplateSyntaxError("'%s' takes two arguments" % bits[0])
     return InsertNode(bits[1], bits[2])
+
+@register.tag
+def insert_form(parser, token):
+    """
+    This tag inserts specified string in containers.
+    
+    Usage:     {% insert_str container_name form %}
+    
+    Example: {% insert_form js form %}
+    
+    """
+    bits = token.split_contents()
+    if len(bits) != 3:
+        raise template.TemplateSyntaxError("'%s' takes two arguments" % bits[0])
+    return InsertNode(bits[1], bits[2])
+
 
 @register.tag
 def insert(parser, token):

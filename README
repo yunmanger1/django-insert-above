@@ -205,6 +205,11 @@ FIXTURES
  if STATIC_URL is not set in settings, it's value is None by default in new versions of Django.
  Now we check if STATIC_URL is None, then use MEDIA_URL
 
+### version 1.0.4
+
+ + added new tag `{% insert_form container form %}`
+ + added new tag `{% insert_form container form.media %}`
+
 ## TODOs
 
 1. testing
