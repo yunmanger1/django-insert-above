@@ -240,7 +240,7 @@ def media_tag(url, **kwargs):
 
 
 def fetch_urls(item, url_set):
-    if isinstance(item, forms.Form):
+    if isinstance(item, (forms.Form, forms.ModelForm)):
         item = getattr(item, 'media', None)
         if item is None:
             return
